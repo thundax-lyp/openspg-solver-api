@@ -2,6 +2,10 @@
 
 An OpenAI style API for OpenSPG Solver.
 
+<div align="center">
+    <img src="./docs/resources/screenshot.jpg" width="1200" alt="screenshot"></img>
+</div>
+
 ## Environment
 
 - Python 3.8+
@@ -45,6 +49,7 @@ curl -X 'GET' \
 ```
 
 ### Completions
+
 ```shell
 curl -X 'POST' \
   'http://127.0.0.1:8888/api/openai/v1/chat/completions' \
