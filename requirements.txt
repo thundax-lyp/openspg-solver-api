@@ -1,0 +1,8 @@
+openspg-kag==0.6
+
+filelock
+
+fastapi
+sse_starlette
+uvicorn
+

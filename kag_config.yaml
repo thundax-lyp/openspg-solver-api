@@ -1,0 +1,11 @@
+
+# keep this fake config to cheat openspg-kag
+# warning: 
+#     KAG load this file as global config in 'kag.common.conf.KAGConfigMgr'. so we lost all default configs in kag.
+#     if you want to use default configs, update this file.
+project:
+  host_addr: http://127.0.0.1:9998
+
+log:
+  level: INFO
+    
