@@ -19,14 +19,20 @@ An OpenAI style API for OpenSPG Solver.
 git clone https://github.com/thundax-lyp/openspg-solver-api.git
 ```
 
-- Install the requirements
+- Create Conda Environment
 
 ```shell
-cd openspg-solver-api
+create conda -n openspg-solver-api python=3.8
+conda activate openspg-solver-api
+```
+
+- Install requirements
+
+```shell
 pip install -r requirements.txt
 ```
 
-- Run the API Server
+- Run API Server
 
 ```shell
 python api.py --host=0.0.0.0 --port=8888 --openspg-service=http://127.0.0.1:8887
