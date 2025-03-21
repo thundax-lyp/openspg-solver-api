@@ -1,7 +1,7 @@
 import json
 import time
 import uuid
-from typing import Optional, List, Literal, Union
+from typing import Optional, List, Literal, Union, Generator
 
 from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel, Field
@@ -76,8 +76,10 @@ def mount_routes(app: FastAPI, args):
             data=[ModelCard(id=f'{model_category}/{x}') for x in projects.keys()]
         )
 
-    @app.post(f'{api_prefix}/v1/chat/completions', response_model=ChatCompletionResponse, tags=[api_tag], summary='Chat Completions')
-    async def create_chat_completion(request: ChatCompletionRequest, api_key: str = Depends(authenticate)) -> EventSourceResponse:
+    @app.post(f'{api_prefix}/v1/chat/completions', response_model=ChatCompletionResponse, tags=[api_tag],
+              summary='Chat Completions')
+    async def create_chat_completion(request: ChatCompletionRequest,
+                                     api_key: str = Depends(authenticate)) -> EventSourceResponse:
         if len(request.messages) < 1 or request.messages[-1].role != "user":
             raise HTTPException(status_code=400, detail=f'Invalid messages: {request.messages}')
 
@@ -93,21 +95,33 @@ def mount_routes(app: FastAPI, args):
 
         query = request.messages[-1].content
 
-        def build_chat_completion_response(content: str, message_id='', finish_reason=None):
+        def build_chat_completion_response(content: any, message_id='', finish_reason=None):
             choice = ChatCompletionResponseStreamChoice(
                 index=0,
-                delta=DeltaMessage(role="assistant", content=content),
+                delta=DeltaMessage(
+                    role="assistant",
+                    content=content if isinstance(content, str) else json.dumps(content, ensure_ascii=False)
+                ),
                 finish_reason=finish_reason
             )
-            chunk = ChatCompletionResponse(model=model_id, id=message_id, choices=[choice], object='chat.completion.chunk')
+            chunk = ChatCompletionResponse(
+                model=model_id,
+                id=message_id,
+                choices=[choice],
+                object='chat.completion.chunk'
+            )
             return '{}'.format(chunk.model_dump_json(exclude_unset=True, exclude_none=True))
 
         def stream_generate():
             message_id = f'chat-{str(uuid.uuid4()).replace("-", "")}'
             event_queue = service.query(query, project_id)
-            for x in event_queue:
-                if x:
-                    yield build_chat_completion_response(content=x if isinstance(x, str) else json.dumps(x, ensure_ascii=False), message_id=message_id)
+            for event in event_queue:
+                if isinstance(event, Generator):
+                    for x in event:
+                        if x:
+                            yield build_chat_completion_response(x, message_id=message_id)
+                elif event:
+                    yield build_chat_completion_response(content=event, message_id=message_id)
 
             yield build_chat_completion_response(content='', message_id=message_id, finish_reason='stop')
             yield '[DONE]'
