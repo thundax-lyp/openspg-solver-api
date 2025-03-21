@@ -3,7 +3,7 @@
 An OpenAI style API for OpenSPG Solver.
 
 <div align="center">
-    <img src="./docs/resources/screenshot.jpg" width="1200" alt="screenshot"></img>
+    <img src="./docs/resources/screenshot.jpg" width="1200" alt="screenshot">
 </div>
 
 ## Environment
@@ -42,13 +42,39 @@ http://127.0.0.1:8888/
 
 ### Models
 
+> Request
+
 ```shell
 curl -X 'GET' \
   'http://127.0.0.1:9999/api/openai/v1/models' \
   -H 'accept: application/json'
 ```
 
+> Response
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "openspg/TwoWiki",
+      "object": "model",
+      "created": 1742525286,
+      "owned_by": "owner"
+    },
+    {
+      "id": "openspg/BaiKe",
+      "object": "model",
+      "created": 1742525286,
+      "owned_by": "owner"
+    }
+  ]
+}
+```
+
 ### Completions
+
+> Request
 
 ```shell
 curl -X 'POST' \
@@ -66,4 +92,3 @@ curl -X 'POST' \
   ]
 }'
 ```
-
