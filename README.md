@@ -17,9 +17,10 @@ An OpenAI style API for OpenSPG Solver.
 
 ```shell
 git clone https://github.com/thundax-lyp/openspg-solver-api.git
+cd openspg-solver-api
 ```
 
-- Create Conda Environment
+- Create Virtual Environment
 
 ```shell
 create conda -n openspg-solver-api python=3.8
