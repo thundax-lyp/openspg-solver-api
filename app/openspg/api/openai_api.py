@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 import uuid
 from typing import Optional, List, Literal, Union, Generator
@@ -80,6 +81,7 @@ def mount_routes(app: FastAPI, args):
               summary='Chat Completions')
     async def create_chat_completion(request: ChatCompletionRequest,
                                      api_key: str = Depends(authenticate)) -> EventSourceResponse:
+        logging.info(f'request by: {api_key}')
         if len(request.messages) < 1 or request.messages[-1].role != "user":
             raise HTTPException(status_code=400, detail=f'Invalid messages: {request.messages}')
 
@@ -118,8 +120,7 @@ def mount_routes(app: FastAPI, args):
             for event in event_queue:
                 if isinstance(event, Generator):
                     for x in event:
-                        if x:
-                            yield build_chat_completion_response(x, message_id=message_id)
+                        yield build_chat_completion_response(x, message_id=message_id)
                 elif event:
                     yield build_chat_completion_response(content=event, message_id=message_id)
 

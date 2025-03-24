@@ -2,6 +2,7 @@ import concurrent.futures
 import json
 import logging
 import os.path
+import threading
 from abc import ABC
 from typing import Generator
 
@@ -26,16 +27,19 @@ class EventQueue(Generator, ABC):
 
     def __init__(self):
         self.events = []
+        self.lock = threading.Lock()
 
     def __next__(self):
         if len(self.events) > 0:
-            event = self.events.pop(0)
+            with self.lock:
+                event = self.events.pop(0)
             if event is None:
                 raise StopIteration
             return event
 
     def send(self, event: any):
-        self.events.append(event)
+        with self.lock:
+            self.events.append(event)
 
     def throw(self, typ, val=None, tb=None):
         pass
@@ -111,21 +115,36 @@ class KagService:
     def query(self, query: str, project_id: str):
         event_queue = EventQueue()
 
+        # def accumulator():
+        #     while True:
+        #         value = yield
+        #         print("received value:" + value)
+        #         if value is None:
+        #             break
+        #
+        # event_queue = accumulator()
+        # next(event_queue)
+
         reporter = ReporterIntermediateProcessTool(report_log=True)
         reporter.client = ReportClientDelegate(event_queue)
 
         def do_task():
-            global_config = load_kag_config(self.service_url, project_id)
-            solver_config = global_config["kag_solver_pipeline"]
-            solver = SolverPipeline.from_config(solver_config)
-            answer, _ = solver.run(query, report_tool=reporter)
-            event_queue.send(answer)
+            try:
+                global_config = load_kag_config(self.service_url, project_id)
+                solver_config = global_config["kag_solver_pipeline"]
+                solver = SolverPipeline.from_config(solver_config)
+                answer, _ = solver.run(query, report_tool=reporter)
+                event_queue.send(answer)
+            except Exception as e:
+                event_queue.send(str(e))
             event_queue.send(None)
+            pass
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
             executor.submit(do_task)
 
         yield from event_queue
+
 
 kag_service = None
 
