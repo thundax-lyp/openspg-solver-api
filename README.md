@@ -53,7 +53,7 @@ http://127.0.0.1:8888/
 
 ```shell
 curl -X 'GET' \
-  'http://127.0.0.1:9999/api/openai/v1/models' \
+  'http://127.0.0.1:8888/api/openai/v1/models' \
   -H 'accept: application/json'
 ```
 
