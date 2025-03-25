@@ -1,4 +1,5 @@
 import argparse
+import importlib.metadata
 import os.path
 
 import uvicorn
@@ -23,9 +24,12 @@ def main():
 
     write_fake_config(os.path.join(os.path.dirname(__file__), 'kag_config.yaml'), args.openspg_service)
 
+    kag_version = importlib.metadata.version('openspg-kag')
+    print(f'OpenSPG-KAG version: {kag_version}')
+
     app = FastAPI(
         title=args.desc,
-        version='0.0.1',
+        version=kag_version,
         default_response_class=JSONResponse,
         response_model_exclude_none=True,
         openapi_url=f'{args.servlet}/openapi.json',
