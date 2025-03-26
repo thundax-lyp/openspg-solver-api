@@ -20,7 +20,7 @@ git clone https://github.com/thundax-lyp/openspg-solver-api.git
 cd openspg-solver-api
 ```
 
-- Create Virtual Environment
+- Create Conda Environment
 
 ```shell
 create conda -n openspg-solver-api python=3.8
@@ -44,6 +44,10 @@ python api.py --host=0.0.0.0 --port=8888 --openspg-service=http://127.0.0.1:8887
 ```shell
 http://127.0.0.1:8888/
 ```
+
+## Streaming Generator
+
+> See [kag_additions](./app/openspg/service/kag_additions/README.md)
 
 ## Test
 

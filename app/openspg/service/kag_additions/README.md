@@ -1,7 +1,7 @@
 # put your registrable modules here
 
 
-# Stream Generator
+# Streaming Generator
 
 - define stream-llm in your project config, such as:
 ```yaml
@@ -15,6 +15,6 @@ generate_llm: &generate_llm
 kag_solver_pipeline:
   generator:
     type: default_generator
-    # refer stream-client 
+    # refer to stream-client 
     llm_client: *generate_llm
 ```
