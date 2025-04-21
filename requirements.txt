@@ -1,4 +1,4 @@
-openspg-kag==0.6
+openspg-kag==0.7
 
 filelock
 
