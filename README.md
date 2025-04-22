@@ -57,7 +57,7 @@ http://127.0.0.1:8888/
 
 ```shell
 curl -X 'GET' \
-  'http://127.0.0.1:8888/api/openai/v1/models' \
+  'http://127.0.0.1:8888/api/openspg/v1/models' \
   -H 'accept: application/json'
 ```
 
@@ -89,7 +89,7 @@ curl -X 'GET' \
 
 ```shell
 curl -X 'POST' \
-  'http://127.0.0.1:8888/api/openai/v1/chat/completions' \
+  'http://127.0.0.1:8888/api/openspg/v1/chat/completions' \
   -H 'accept: application/json' \
   -H 'Content-Type: application/json' \
   -H 'Authorization: Bearer none' \

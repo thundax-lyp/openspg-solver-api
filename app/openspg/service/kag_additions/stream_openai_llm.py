@@ -27,7 +27,7 @@ class StreamOpenAIClient(OpenAIClient):
             temperature=temperature
         )
 
-    def __call__(self, prompt: str, image_url: str = None):
+    def __call__(self, prompt: str = "", image_url: str = None, **kwargs):
         message = [
             {"role": "system", "content": "you are a helpful assistant"},
             {"role": "user", "content": prompt},

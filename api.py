@@ -1,19 +1,17 @@
 import argparse
 import importlib.metadata
+import os
 import os.path
 
-import uvicorn
 from fastapi import FastAPI
 
 from app.fastapi_extends.responses import JSONResponse
-from app.routes import mount_all_routes
-from app.utils import write_fake_config
 
 
-def main():
+def init_app():
     parser = argparse.ArgumentParser(prog='OpenSPG API Server', description='An OpenSPG Knowledge Base API Server')
     parser.add_argument('--host', type=str, default="127.0.0.1")
-    parser.add_argument('--port', type=int, default=9999)
+    parser.add_argument('--port', type=int, default=8888)
     parser.add_argument('--servlet', type=str, default='/api')
     parser.add_argument('--desc', type=str, default='OpenSPG API Server')
     parser.add_argument('--openspg-service', type=str, default='http://127.0.0.1:8887')
@@ -22,7 +20,10 @@ def main():
 
     print(args)
 
-    write_fake_config(os.path.join(os.path.dirname(__file__), 'kag_config.yaml'), args.openspg_service)
+    os.environ['KAG_PROJECT_ID'] = '0'
+    os.environ['KAG_PROJECT_HOST_ADDR'] = args.openspg_service
+
+    # write_fake_config(os.path.join(os.path.dirname(__file__), 'kag_config.yaml'), args.openspg_service)
 
     kag_version = importlib.metadata.version('openspg-kag')
     print(f'OpenSPG-KAG version: {kag_version}')
@@ -35,10 +36,13 @@ def main():
         openapi_url=f'{args.servlet}/openapi.json',
     )
 
+    from app.routes import mount_all_routes
     mount_all_routes(app, args)
 
-    uvicorn.run(app, host=args.host, port=args.port)
+    return app, args
 
+app, args = init_app()
 
 if __name__ == '__main__':
-    main()
+    import uvicorn
+    uvicorn.run(app, host=args.host, port=args.port)

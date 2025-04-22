@@ -1,17 +1,20 @@
+import asyncio
 import concurrent.futures
 import json
 import logging
 import os.path
 import threading
+import traceback
 from abc import ABC
 from typing import Generator
 
-from kag.common.conf import KAGConstants
+from kag.common.conf import KAGConstants, KAG_CONFIG, KAG_PROJECT_CONF
 from kag.common.registry import import_modules_from_path
-from kag.solver.logic.solver_pipeline import SolverPipeline
-from kag.solver.tools.info_processor import ReporterIntermediateProcessTool
+from kag.interface import SolverPipelineABC
+from kag.solver.executor.retriever.local_knowledge_base.kag_retriever.kag_hybrid_executor import KAGRetrievedResponse
+from kag.solver.reporter.open_spg_reporter import OpenSPGReporter
+from kag.solver.reporter.trace_log_reporter import TraceLog
 from knext.project.client import ProjectClient
-from knext.reasoner import ReasonerApi
 from knext.reasoner.rest.models.report_pipeline_request import ReportPipelineRequest
 
 from app.utils import remove_empty_fields
@@ -45,11 +48,49 @@ class EventQueue(Generator, ABC):
         pass
 
 
-class ReportClientDelegate(ReasonerApi):
+class EventReporter(OpenSPGReporter):
 
-    def __init__(self, generator: Generator):
-        super().__init__()
+    def __init__(self, generator: Generator, **kwargs):
+        super().__init__(0, **kwargs)
         self.generator = generator
+
+    def do_report(self):
+        return self.generate_report_data()
+
+    def generate_report_data(self):
+        processed_report_record = []
+        report_to_spg_data = TraceLog()
+        status = ""
+        segment_name = ""
+        for report_id in self.report_record:
+            if report_id in processed_report_record:
+                continue
+            report_data = self.report_stream_data[report_id]
+            segment_name = report_data["segment"]
+            content = report_data["content"]
+            if segment_name == "thinker":
+                report_to_spg_data.thinker[report_data["tag_name"]] = f"{content}"
+            elif segment_name == "answer":
+                report_to_spg_data.answer = content
+            elif segment_name == "reference":
+                if isinstance(content, KAGRetrievedResponse):
+                    report_to_spg_data.decompose.append(content.to_dict())
+                else:
+                    logger.warning(f"Unknown reference type {type(content)}")
+                    continue
+            elif segment_name == "generator":
+                report_to_spg_data.generator.append(content)
+            elif segment_name == "generator_reference":
+                report_to_spg_data.reference = content
+
+            status = report_data["status"]
+            processed_report_record.append(report_id)
+            if status != "FINISH":
+                break
+        if status == "FINISH":
+            if segment_name != "answer":
+                status = "RUNNING"
+        return report_to_spg_data, status
 
     def reasoner_dialog_report_node_post(self, report_pipeline_request: ReportPipelineRequest):
         self.generator.send(remove_empty_fields({
@@ -72,6 +113,8 @@ def load_kag_config(host_addr, project_id):
     """
     project_client = ProjectClient(host_addr=host_addr, project_id=project_id)
     project = project_client.get_by_id(project_id)
+    if not project:
+        return {}
     config = json.loads(project.config)
     if "project" not in config:
         config["project"] = {
@@ -85,6 +128,7 @@ def load_kag_config(host_addr, project_id):
                 config["project"][key] = prompt_config[key]
     if "vectorizer" in config and "vectorize_model" not in config:
         config["vectorize_model"] = config["vectorizer"]
+    config["project"]["project_id"] = project_id
     return config
 
 
@@ -92,13 +136,12 @@ class KagService:
 
     def __init__(self, service_url: str, addition_modules: list[str] = None):
         self.service_url = service_url
-        os.environ[KAGConstants.ENV_KAG_PROJECT_HOST_ADDR] = self.service_url
 
         import_modules_from_path(os.path.join(os.path.dirname(__file__), 'kag_additions'))
         for module in addition_modules or []:
             import_modules_from_path(module)
 
-        self.project_client = ProjectClient(host_addr=self.service_url)
+        self.project_client = ProjectClient(host_addr=self.service_url, project_id=-1)
         logger.info('loading projects')
         self.project_list = self.project_client.get_all()
         logger.info(f'loaded {len(self.project_list)} projects')
@@ -115,33 +158,30 @@ class KagService:
     def query(self, query: str, project_id: str):
         event_queue = EventQueue()
 
-        # def accumulator():
-        #     while True:
-        #         value = yield
-        #         print("received value:" + value)
-        #         if value is None:
-        #             break
-        #
-        # event_queue = accumulator()
-        # next(event_queue)
+        reporter = EventReporter(generator=event_queue)
 
-        reporter = ReporterIntermediateProcessTool(report_log=True)
-        reporter.client = ReportClientDelegate(event_queue)
-
-        def do_task():
+        async def do_task():
             try:
                 global_config = load_kag_config(self.service_url, project_id)
-                solver_config = global_config["kag_solver_pipeline"]
-                solver = SolverPipeline.from_config(solver_config)
-                answer, _ = solver.run(query, report_tool=reporter)
+
+                KAG_CONFIG.update_conf(global_config)
+                KAG_PROJECT_CONF.project_id = project_id
+
+                solver_config = global_config["solver_pipeline"]
+                solver = SolverPipelineABC.from_config(solver_config)
+                answer = await solver.ainvoke(query, reporter=reporter)
                 event_queue.send(answer)
             except Exception as e:
-                event_queue.send(str(e))
+                event_queue.send(f'Error: {str(e)}')
+                traceback.print_exc()
             event_queue.send(None)
             pass
 
+        def do_task_sync():
+            asyncio.run(do_task())
+
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            executor.submit(do_task)
+            executor.submit(do_task_sync)
 
         yield from event_queue
 

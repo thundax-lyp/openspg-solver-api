@@ -38,6 +38,9 @@ project:
 
 log:
   level: {debug_level}
+
+vectorize_model:
+  type: openai
     """
     with open(filename, "w") as f:
         f.write(content)
