@@ -1,6 +1,10 @@
+import asyncio
 import json
 import logging
+import multiprocessing
+import threading
 import uuid
+from concurrent.futures.thread import ThreadPoolExecutor
 from typing import Generator
 
 from fastapi import FastAPI, HTTPException, Depends
@@ -9,7 +13,7 @@ from sse_starlette.sse import EventSourceResponse
 from app.authz.authorize import authenticate
 from app.openspg.api.model.openai_model import ModelList, ChatCompletionResponse, ModelCard, ChatCompletionRequest, \
     ChatCompletionResponseStreamChoice, DeltaMessage
-from app.openspg.service.kag_service import get_kag_service
+from app.openspg.service.kag_service import get_kag_service, EventQueue
 
 
 def mount_routes(app: FastAPI, args):
@@ -76,7 +80,17 @@ def mount_routes(app: FastAPI, args):
 
         def stream_generate():
             message_id = f'chat-{str(uuid.uuid4()).replace("-", "")}'
-            event_queue = service.query(query, project_id)
+            event_queue = EventQueue()
+
+            def printer(message):
+                event_queue.send(message)
+
+            def do_task():
+                asyncio.run(service.query(query, project_id, printer=printer))
+
+            executor = threading.Thread(target=do_task)
+            executor.start()
+
             for event in event_queue:
                 if isinstance(event, Generator):
                     for x in event:

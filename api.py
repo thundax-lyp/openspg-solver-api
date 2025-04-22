@@ -41,8 +41,8 @@ def init_app():
 
     return app, args
 
-app, args = init_app()
+api, args = init_app()
 
 if __name__ == '__main__':
     import uvicorn
-    uvicorn.run(app, host=args.host, port=args.port)
+    uvicorn.run(api, host=args.host, port=args.port)

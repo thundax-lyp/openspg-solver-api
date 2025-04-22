@@ -2,12 +2,15 @@ import asyncio
 import concurrent.futures
 import json
 import logging
+import multiprocessing
 import os.path
 import threading
 import traceback
 from abc import ABC
+from multiprocessing import Process
 from typing import Generator
 
+from jedi.inference.gradual.typing import Callable
 from kag.common.conf import KAGConstants, KAG_CONFIG, KAG_PROJECT_CONF
 from kag.common.registry import import_modules_from_path
 from kag.interface import SolverPipelineABC
@@ -50,59 +53,20 @@ class EventQueue(Generator, ABC):
 
 class EventReporter(OpenSPGReporter):
 
-    def __init__(self, generator: Generator, **kwargs):
+    def __init__(self, printer, **kwargs):
         super().__init__(0, **kwargs)
-        self.generator = generator
+        self.printer = printer
 
-    def do_report(self):
-        return self.generate_report_data()
+    def add_report_line(self, segment, tag_name, content, status, **kwargs):
+        super().add_report_line(segment, tag_name, content, status, **kwargs)
 
-    def generate_report_data(self):
-        processed_report_record = []
-        report_to_spg_data = TraceLog()
-        status = ""
-        segment_name = ""
-        for report_id in self.report_record:
-            if report_id in processed_report_record:
-                continue
-            report_data = self.report_stream_data[report_id]
-            segment_name = report_data["segment"]
-            content = report_data["content"]
-            if segment_name == "thinker":
-                report_to_spg_data.thinker[report_data["tag_name"]] = f"{content}"
-            elif segment_name == "answer":
-                report_to_spg_data.answer = content
-            elif segment_name == "reference":
-                if isinstance(content, KAGRetrievedResponse):
-                    report_to_spg_data.decompose.append(content.to_dict())
-                else:
-                    logger.warning(f"Unknown reference type {type(content)}")
-                    continue
-            elif segment_name == "generator":
-                report_to_spg_data.generator.append(content)
-            elif segment_name == "generator_reference":
-                report_to_spg_data.reference = content
+        report_data = self.report_stream_data[tag_name]
 
-            status = report_data["status"]
-            processed_report_record.append(report_id)
-            if status != "FINISH":
-                break
-        if status == "FINISH":
-            if segment_name != "answer":
-                status = "RUNNING"
-        return report_to_spg_data, status
-
-    def reasoner_dialog_report_node_post(self, report_pipeline_request: ReportPipelineRequest):
-        self.generator.send(remove_empty_fields({
-            'event': 'nodeChanged',
-            'data': report_pipeline_request.to_dict()
-        }))
-
-    def reasoner_dialog_report_pipeline_post(self, report_pipeline_request: ReportPipelineRequest):
-        self.generator.send(remove_empty_fields({
-            'event': 'pipelineChanged',
-            'data': report_pipeline_request.to_dict()
-        }))
+        if self.printer:
+            self.printer(remove_empty_fields({
+                'event': 'changed',
+                'data': report_data
+            }))
 
     pass
 
@@ -128,7 +92,6 @@ def load_kag_config(host_addr, project_id):
                 config["project"][key] = prompt_config[key]
     if "vectorizer" in config and "vectorize_model" not in config:
         config["vectorize_model"] = config["vectorizer"]
-    config["project"]["project_id"] = project_id
     return config
 
 
@@ -155,35 +118,22 @@ class KagService:
     def get_project_id_by_name(self, project_name: str):
         return self.project_list.get(project_name)
 
-    def query(self, query: str, project_id: str):
-        event_queue = EventQueue()
+    async def query(self, query: str, project_id: str, printer = None):
+        try:
+            reporter = EventReporter(printer=printer)
+            global_config = load_kag_config(self.service_url, project_id)
 
-        reporter = EventReporter(generator=event_queue)
+            KAG_CONFIG.update_conf(global_config)
+            KAG_PROJECT_CONF.project_id = project_id
 
-        async def do_task():
-            try:
-                global_config = load_kag_config(self.service_url, project_id)
+            solver_config = global_config["solver_pipeline"]
+            solver = SolverPipelineABC.from_config(solver_config)
+            return await solver.ainvoke(query, reporter=reporter)
 
-                KAG_CONFIG.update_conf(global_config)
-                KAG_PROJECT_CONF.project_id = project_id
-
-                solver_config = global_config["solver_pipeline"]
-                solver = SolverPipelineABC.from_config(solver_config)
-                answer = await solver.ainvoke(query, reporter=reporter)
-                event_queue.send(answer)
-            except Exception as e:
-                event_queue.send(f'Error: {str(e)}')
-                traceback.print_exc()
-            event_queue.send(None)
-            pass
-
-        def do_task_sync():
-            asyncio.run(do_task())
-
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            executor.submit(do_task_sync)
-
-        yield from event_queue
+        except Exception as e:
+            traceback.print_exc()
+            return str(e)
+        pass
 
 
 kag_service = None
