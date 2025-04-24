@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from app.fastapi_extends.responses import JSONResponse
 
 
-def init_app():
+def parse_args():
     parser = argparse.ArgumentParser(prog='OpenSPG API Server', description='An OpenSPG Knowledge Base API Server')
     parser.add_argument('--host', type=str, default="127.0.0.1")
     parser.add_argument('--port', type=int, default=8888)
@@ -16,10 +16,10 @@ def init_app():
     parser.add_argument('--desc', type=str, default='OpenSPG API Server')
     parser.add_argument('--openspg-service', type=str, default='http://127.0.0.1:8887')
     parser.add_argument('--openspg-modules', action="store", type=str, nargs='*', default=[])
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    print(args)
 
+def init_app(args):
     os.environ['KAG_PROJECT_ID'] = '0'
     os.environ['KAG_PROJECT_HOST_ADDR'] = args.openspg_service
 
@@ -39,10 +39,15 @@ def init_app():
     from app.routes import mount_all_routes
     mount_all_routes(app, args)
 
-    return app, args
+    return app
 
-api, args = init_app()
+
+args = parse_args()
+print(args)
+
+api = init_app(args)
 
 if __name__ == '__main__':
     import uvicorn
+
     uvicorn.run(api, host=args.host, port=args.port)
