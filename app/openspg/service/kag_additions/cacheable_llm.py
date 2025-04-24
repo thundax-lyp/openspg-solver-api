@@ -12,6 +12,7 @@ from kag.interface import LLMClient, VectorizeModelABC, EmbeddingVector
 
 logger = logging.getLogger()
 
+
 class CacheManager:
     lock_dict = {}
     params_dict = {}
@@ -125,7 +126,11 @@ class CacheableLLMClient(LLMClient):
     """
 
     def __init__(self, delegate_type: str, cache_root: str = None, **kwargs):
-        super().__init__(**kwargs)
+        name = kwargs.pop("name", None)
+        if not name:
+            name = f"cacheable_llm"
+
+        super().__init__(name=name, **kwargs)
 
         self.cache_root = CACHE_MGR.register(cache_root, kwargs)
 
@@ -139,10 +144,10 @@ class CacheableLLMClient(LLMClient):
         CACHE_MGR.unregister(self.cache_root)
 
     @override
-    def __call__(self, prompt: Union[str, dict, list]) -> str:
+    def __call__(self, prompt: Union[str, dict, list], **kwargs) -> str:
         response = CACHE_MGR.read(self.cache_root, prompt)
         if response is None:
-            response = self.client(prompt)
+            response = self.client(prompt, **kwargs)
             CACHE_MGR.write(self.cache_root, prompt, response)
         return response
 
@@ -159,8 +164,18 @@ class CacheableVectorizeModel(VectorizeModelABC):
     A class that extends the VectorizeModelABC base class.
     """
 
-    def __init__(self, delegate_type: str, cache_root: str = None, vector_dimensions: int = None, **kwargs):
-        super().__init__(vector_dimensions)
+    def __init__(self,
+                 delegate_type: str,
+                 cache_root: str = None,
+                 vector_dimensions: int = None,
+                 max_rate: float = 1000,
+                 time_period: float = 1,
+                 **kwargs):
+        name = kwargs.pop("name", None)
+        if not name:
+            name = f"cacheable_vectorize_model"
+
+        super().__init__(name=name, vector_dimensions=vector_dimensions, max_rate=max_rate, time_period=time_period)
 
         self.cache_root = CACHE_MGR.register(cache_root, kwargs)
 
