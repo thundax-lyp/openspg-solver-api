@@ -8,7 +8,7 @@ An OpenAI style API for OpenSPG Solver.
 
 ## Environment
 
-- Python 3.8+
+- Python 3.10+
 - [KAG 0.7](https://github.com/OpenSPG/KAG)
 
 ## Install
