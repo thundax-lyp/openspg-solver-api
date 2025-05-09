@@ -23,7 +23,7 @@ cd openspg-solver-api
 - Create Conda Environment
 
 ```shell
-create conda -n openspg-solver-api python=3.8
+create conda -n openspg-solver-api python=3.10
 conda activate openspg-solver-api
 ```
 
