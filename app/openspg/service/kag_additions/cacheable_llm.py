@@ -6,9 +6,8 @@ from hashlib import md5
 from typing import Union, Iterable, List
 
 from filelock import FileLock, Timeout
-from typing_extensions import override
-
 from kag.interface import LLMClient, VectorizeModelABC, EmbeddingVector
+from typing_extensions import override
 
 logger = logging.getLogger()
 
@@ -190,10 +189,14 @@ class CacheableVectorizeModel(VectorizeModelABC):
         source_texts: list[str] = [texts] if isinstance(texts, str) else texts
         embedding_vectors = [CACHE_MGR.read(self.cache_root, x) for x in source_texts]
 
-        uncached_texts = [text for text, embedding_vector in zip(source_texts, embedding_vectors) if
-                          embedding_vector is None]
+        uncached_texts = [
+            text
+            for text, embedding_vector in zip(source_texts, embedding_vectors)
+            if embedding_vector is None
+        ]
         if len(uncached_texts) > 0:
-            vectors: Iterable[EmbeddingVector] = self.client.vectorize(uncached_texts)
+            iterable_vectors: Iterable[EmbeddingVector] = self.client.vectorize(uncached_texts)
+            vectors = list(iterable_vectors)
 
             for idx, (text, embedding_vector) in enumerate(zip(source_texts, embedding_vectors)):
                 if embedding_vector is None:

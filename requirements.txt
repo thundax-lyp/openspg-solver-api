@@ -1,5 +1,4 @@
-openspg-kag==0.7
-
+openspg-kag>=0.7
 filelock
 
 fastapi
