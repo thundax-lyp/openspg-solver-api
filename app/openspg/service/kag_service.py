@@ -29,14 +29,14 @@ class EventQueue(Generator, ABC):
 
     def __next__(self):
         if len(self.events) > 0:
-            with self.lock:
+            with self.lock.acquire():
                 event = self.events.pop(0)
             if event is None:
                 raise StopIteration
             return event
 
     def send(self, event: any):
-        with self.lock:
+        with self.lock.acquire():
             self.events.append(event)
 
     def throw(self, typ, val=None, tb=None):
