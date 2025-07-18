@@ -19,7 +19,7 @@ def mount_routes(app: FastAPI, args):
     api_tag = 'OpenAI'
     model_category = 'openspg'
 
-    service = get_kag_service(args.openspg_service, args.openspg_modules)
+    service = get_kag_service(args.openspg_service, args.openspg_config, args.openspg_modules)
 
     @app.get(
         f'{api_prefix}/v1/models',
@@ -53,8 +53,8 @@ def mount_routes(app: FastAPI, args):
             raise ValueError(f'Invalid model id: {model_id}')
 
         project_name = model_id[(len(model_category) + 1):]
-        project_id = service.get_project_id_by_name(project_name)
-        if not project_id:
+        projects = service.get_projects()
+        if project_name not in projects:
             raise ValueError(f'Project {project_name} not found')
 
         query = request.messages[-1].content
@@ -84,7 +84,7 @@ def mount_routes(app: FastAPI, args):
                 event_queue.send(message)
 
             def do_task():
-                asyncio.run(service.query(query, project_id, printer=printer))
+                asyncio.run(service.query(query, project_name, printer=printer))
 
             executor = threading.Thread(target=do_task)
             executor.start()

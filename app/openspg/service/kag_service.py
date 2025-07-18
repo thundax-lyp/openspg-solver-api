@@ -6,7 +6,7 @@ import traceback
 from abc import ABC
 from typing import Generator
 
-from kag.common.conf import KAGConstants, KAG_CONFIG, KAG_PROJECT_CONF
+from kag.common.conf import KAGConstants, KAG_CONFIG, KAG_PROJECT_CONF, load_config
 from kag.common.registry import import_modules_from_path
 from kag.interface import SolverPipelineABC
 from kag.solver.reporter.open_spg_reporter import OpenSPGReporter
@@ -29,14 +29,14 @@ class EventQueue(Generator, ABC):
 
     def __next__(self):
         if len(self.events) > 0:
-            with self.lock.acquire():
+            with self.lock:
                 event = self.events.pop(0)
             if event is None:
                 raise StopIteration
             return event
 
     def send(self, event: any):
-        with self.lock.acquire():
+        with self.lock:
             self.events.append(event)
 
     def throw(self, typ, val=None, tb=None):
@@ -57,10 +57,37 @@ class EventReporter(OpenSPGReporter):
         if self.printer:
             self.printer(remove_empty_fields({
                 'event': 'changed',
-                'data': report_data
+                'data': {
+                    k: v for k, v in report_data.items() if k not in ['kwargs']
+                }
             }))
 
     pass
+
+
+def load_configs_from_file(root_dir: str):
+    """
+    load kag_config.yaml from kag_config_dir
+    """
+    config_filenames = []
+    for dirpath, _, filenames in os.walk(root_dir):
+        for filename in filenames:
+            if filename.endswith(".yml") or filename.endswith(".yaml"):
+                config_filenames.append(os.path.join(dirpath, filename))
+    logger.info(f"find {len(config_filenames)} yaml files")
+
+    configs = []
+    for config_filename in config_filenames:
+        config = load_config(config_file=config_filename)
+        if config and config['project'] and config['project']['namespace']:
+            configs.append(config)
+
+    return configs
+
+
+def load_projects_from_server(host_addr: str):
+    project_client = ProjectClient(host_addr=host_addr, project_id=-1)
+    return project_client.get_all()
 
 
 def load_kag_config(host_addr, project_id):
@@ -84,42 +111,57 @@ def load_kag_config(host_addr, project_id):
                 config["project"][key] = prompt_config[key]
     if "vectorizer" in config and "vectorize_model" not in config:
         config["vectorize_model"] = config["vectorizer"]
+    config["project"][KAGConstants.KAG_PROJECT_HOST_ADDR_KEY] = host_addr
     return config
 
 
 class KagService:
 
-    def __init__(self, service_url: str, addition_modules: list[str] = None):
+    def __init__(self, service_url: str, config_dir: str, addition_modules: list[str] = None, ):
         self.service_url = service_url
+        self.config_dir = config_dir
 
         import_modules_from_path(os.path.join(os.path.dirname(__file__), 'kag_additions'))
         for module in addition_modules or []:
             import_modules_from_path(module)
 
-        self.project_client = ProjectClient(host_addr=self.service_url, project_id=-1)
-        logger.info('loading projects')
-        self.project_list = self.project_client.get_all()
-        logger.info(f'loaded {len(self.project_list)} projects')
-        for project_name, project_key in self.project_list.items():
-            logger.info(f'  - {project_name}: {project_key}')
+        self.config_map = {}
+        self.load_project_list()
+        self.trace_project_list()
         pass
 
+    def load_project_list(self):
+        configs = load_configs_from_file(self.config_dir)
+        projects = load_projects_from_server(host_addr=self.service_url)
+
+        for config in configs:
+            project_name = config['project']['namespace']
+            project_id = str(config['project']['id'])
+            if project_name in projects and projects[project_name] == project_id:
+                self.config_map[project_name] = config
+        pass
+
+    def trace_project_list(self):
+        logger.info(f'find {len(self.config_map)} projects')
+        for project_name in self.config_map:
+            logger.info(f'  - {project_name}')
+
     def get_projects(self):
-        return self.project_list
+        return self.config_map
 
     def get_project_id_by_name(self, project_name: str):
-        return self.project_list.get(project_name)
+        return self.config_map.get(project_name)
 
-    async def query(self, query: str, project_id: str, printer = None):
+    async def query(self, query: str, project_name: str, printer=None):
         try:
             reporter = EventReporter(printer=printer)
-            global_config = load_kag_config(self.service_url, project_id)
+
+            global_config = self.config_map[project_name]
 
             KAG_CONFIG.update_conf(global_config)
-            KAG_PROJECT_CONF.project_id = project_id
+            KAG_PROJECT_CONF.project_id = global_config['project']['id']
 
-            solver_config = global_config["solver_pipeline"]
-            solver = SolverPipelineABC.from_config(solver_config)
+            solver = SolverPipelineABC.from_config(global_config["kag_solver_pipeline"])
             return await solver.ainvoke(query, reporter=reporter)
 
         except Exception as e:
@@ -131,11 +173,8 @@ class KagService:
 kag_service = None
 
 
-def get_kag_service(service_url: str, addition_modules: list[str] = None) -> KagService:
+def get_kag_service(service_url: str, config_dir: str, addition_modules: list[str] = None) -> KagService:
     global kag_service
     if kag_service is None:
-        kag_service = KagService(service_url=service_url, addition_modules=addition_modules)
+        kag_service = KagService(service_url=service_url, config_dir=config_dir, addition_modules=addition_modules)
     return kag_service
-
-
-print(__file__)

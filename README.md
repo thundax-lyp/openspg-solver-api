@@ -9,7 +9,7 @@ An OpenAI style API for OpenSPG Solver.
 ## Environment
 
 - Python 3.10+
-- [KAG 0.7](https://github.com/OpenSPG/KAG)
+- [KAG 0.8+](https://github.com/OpenSPG/KAG)
 
 ## Install
 
@@ -32,6 +32,9 @@ conda activate openspg-solver-api
 ```shell
 pip install -r requirements.txt
 ```
+
+- Copy ```kag_config.yaml``` files into ```./config``` folder
+
 
 - Run API Server
 

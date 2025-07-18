@@ -1,7 +1,12 @@
-openspg-kag>=0.7
-filelock
+openspg-kag>=0.8
+filelock~=3.18.0
 
-fastapi
+fastapi~=0.115.12
 sse_starlette
-uvicorn
+uvicorn~=0.34.2
 gunicorn
+
+starlette~=0.46.2
+pydantic~=2.11.3
+sse-starlette~=2.3.5
+PyYAML
