@@ -3,7 +3,7 @@ import json
 import logging
 import threading
 import uuid
-from typing import Generator
+from typing import Generator, Any
 
 from fastapi import FastAPI, HTTPException, Depends
 from sse_starlette.sse import EventSourceResponse
@@ -59,12 +59,14 @@ def mount_routes(app: FastAPI, args):
 
         query = request.messages[-1].content
 
-        def build_chat_completion_response(content: any, message_id='', finish_reason=None):
+        def build_chat_completion_response(content: Any, message_id='', finish_reason=None):
+            default_encoder = lambda x: x.__dict__ if hasattr(x, '__dict__') else str(x)
+
             choice = ChatCompletionResponseStreamChoice(
                 index=0,
                 delta=DeltaMessage(
                     role="assistant",
-                    content=content if isinstance(content, str) else json.dumps(content, ensure_ascii=False)
+                    content=content if isinstance(content, str) else json.dumps(content, ensure_ascii=False, default=default_encoder)
                 ),
                 finish_reason=finish_reason
             )
@@ -92,7 +94,7 @@ def mount_routes(app: FastAPI, args):
             for event in event_queue:
                 if isinstance(event, Generator):
                     for x in event:
-                        yield build_chat_completion_response(x, message_id=message_id)
+                        yield build_chat_completion_response(content=x, message_id=message_id)
                 elif event:
                     yield build_chat_completion_response(content=event, message_id=message_id)
 

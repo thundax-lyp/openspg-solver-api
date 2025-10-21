@@ -2,9 +2,10 @@
 Toolkit
 """
 from enum import Enum
+from typing import Any
 
 
-def remove_empty_fields(source: any):
+def remove_empty_fields(source: Any):
     if isinstance(source, dict):
         return {
             k: remove_empty_fields(v) for k, v in source.items() if v is not None

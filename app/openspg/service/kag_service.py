@@ -4,7 +4,7 @@ import os.path
 import threading
 import traceback
 from abc import ABC
-from typing import Generator
+from typing import Generator, Any
 
 from kag.common.conf import KAGConstants, KAG_CONFIG, KAG_PROJECT_CONF, load_config
 from kag.common.registry import import_modules_from_path
@@ -35,7 +35,7 @@ class EventQueue(Generator, ABC):
                 raise StopIteration
             return event
 
-    def send(self, event: any):
+    def send(self, event: Any):
         with self.lock:
             self.events.append(event)
 
@@ -167,7 +167,7 @@ class KagService:
         except Exception as e:
             traceback.print_exc()
             return str(e)
-        pass
+    pass
 
 
 kag_service = None
